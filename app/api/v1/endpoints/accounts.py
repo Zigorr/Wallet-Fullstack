@@ -1,60 +1,58 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from typing import List
 from app.core.database import get_db
 from app.models.user import User
-from app.models.account import Account
 from app.api.v1.endpoints.auth import get_current_user
+from app.schemas.account import AccountCreate, AccountUpdate, AccountResponse
+from app.services.account_service import AccountService
 
 router = APIRouter()
 
-@router.get("/")
+def get_account_service(db: AsyncSession = Depends(get_db)) -> AccountService:
+    return AccountService(db)
+
+@router.get("/", response_model=List[AccountResponse])
 async def get_accounts(
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
+    account_service: AccountService = Depends(get_account_service)
 ):
     """Get all accounts for the current user"""
-    result = await db.execute(
-        select(Account).where(Account.user_id == current_user.id)
-    )
-    accounts = result.scalars().all()
-    return accounts
+    return await account_service.get_user_accounts(current_user.id)
 
-@router.post("/")
+@router.post("/", response_model=AccountResponse)
 async def create_account(
+    account_data: AccountCreate,
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
+    account_service: AccountService = Depends(get_account_service)
 ):
     """Create a new account"""
-    # TODO: Implement account creation with proper schema validation
-    return {"message": "Account creation endpoint - to be implemented"}
+    return await account_service.create_account(account_data, current_user.id)
 
-@router.get("/{account_id}")
+@router.get("/{account_id}", response_model=AccountResponse)
 async def get_account(
     account_id: str,
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
+    account_service: AccountService = Depends(get_account_service)
 ):
     """Get a specific account"""
-    # TODO: Implement account retrieval
-    return {"message": f"Get account {account_id} - to be implemented"}
+    return await account_service.get_account_by_id(account_id, current_user.id)
 
-@router.put("/{account_id}")
+@router.put("/{account_id}", response_model=AccountResponse)
 async def update_account(
     account_id: str,
+    account_data: AccountUpdate,
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
+    account_service: AccountService = Depends(get_account_service)
 ):
     """Update an account"""
-    # TODO: Implement account update
-    return {"message": f"Update account {account_id} - to be implemented"}
+    return await account_service.update_account(account_id, account_data, current_user.id)
 
 @router.delete("/{account_id}")
 async def delete_account(
     account_id: str,
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
+    account_service: AccountService = Depends(get_account_service)
 ):
-    """Delete an account"""
-    # TODO: Implement account deletion
-    return {"message": f"Delete account {account_id} - to be implemented"} 
+    """Delete an account (soft delete)"""
+    return await account_service.delete_account(account_id, current_user.id) 

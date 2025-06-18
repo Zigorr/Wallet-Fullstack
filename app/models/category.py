@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Boolean, DateTime, func, Enum, Text
+from sqlalchemy import Column, String, Boolean, DateTime, func, Enum, Text, ForeignKey
 from sqlalchemy.orm import relationship
 import uuid
 import enum
@@ -20,8 +20,10 @@ class Category(Base):
     is_system = Column(Boolean, default=False)  # System-defined categories
     is_active = Column(Boolean, default=True)
     description = Column(Text)
+    user_id = Column(String, ForeignKey("users.id"), nullable=True)  # NULL for system categories
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     # Relationships
+    user = relationship("User", back_populates="categories")
     transactions = relationship("Transaction", back_populates="category")
     budgets = relationship("Budget", back_populates="category") 

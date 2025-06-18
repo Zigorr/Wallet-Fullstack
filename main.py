@@ -1,102 +1,191 @@
-from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.middleware.trustedhost import TrustedHostMiddleware
-from contextlib import asynccontextmanager
+import asyncio
+import logging
 import uvicorn
-import os
-from dotenv import load_dotenv
+from contextlib import asynccontextmanager
+from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.responses import JSONResponse
+import time
 
-from app.core.config import get_settings
+from app.api.v1.api import api_router
+from app.core.database import create_tables, close_db, check_database_health, analyze_database
+from app.core.cache import initialize_cache, cleanup_cache
 
-# Load environment variables
-load_dotenv()
-
-# Get settings
-settings = get_settings()
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
+logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    """Application lifespan management with optimizations"""
     # Startup
-    print("🚀 Wallet API starting up...")
+    logger.info("🚀 Starting Wallet Backend Application...")
     
-    # Try to create database tables if database is configured
     try:
-        if settings.DATABASE_URL and "localhost" not in settings.DATABASE_URL:
-            from app.core.database import create_tables
-            await create_tables()
-            print("✅ Database tables created successfully!")
+        # Initialize database
+        await create_tables()
+        logger.info("✅ Database tables created/verified")
+        
+        # Initialize cache system
+        await initialize_cache()
+        logger.info("✅ Cache system initialized")
+        
+        # Run database optimizations
+        await analyze_database()
+        logger.info("✅ Database optimizations applied")
+        
+        # Health check
+        if await check_database_health():
+            logger.info("✅ Database health check passed")
         else:
-            print("⚠️  Database not configured - running in demo mode")
-            print("   Set DATABASE_URL in .env file to enable database features")
+            logger.warning("⚠️ Database health check failed")
+        
+        logger.info("🎉 Application startup completed successfully")
+        
     except Exception as e:
-        print(f"⚠️  Database connection failed: {e}")
-        print("   App will run in demo mode - set up database for full functionality")
-    
-    print(f"📊 API Documentation: http://localhost:{settings.PORT}/docs")
+        logger.error(f"❌ Startup failed: {e}")
+        raise
     
     yield
     
     # Shutdown
-    print("👋 Wallet API shutting down...")
+    logger.info("🛑 Shutting down Wallet Backend Application...")
+    
+    try:
+        await cleanup_cache()
+        logger.info("✅ Cache cleanup completed")
+        
+        await close_db()
+        logger.info("✅ Database connections closed")
+        
+        logger.info("👋 Application shutdown completed")
+        
+    except Exception as e:
+        logger.error(f"❌ Shutdown error: {e}")
 
-# Create FastAPI app with lifespan
+# Create FastAPI application with optimizations
 app = FastAPI(
-    title="Wallet API",
-    description="Personal Finance Management API",
+    title="Personal Finance Wallet API",
+    description="A comprehensive personal finance management API",
     version="1.0.0",
-    docs_url="/docs" if settings.DEBUG else None,
-    redoc_url="/redoc" if settings.DEBUG else None,
+    docs_url="/api/docs",
+    redoc_url="/api/redoc",
+    openapi_url="/api/openapi.json",
     lifespan=lifespan
 )
 
-# CORS middleware
+# Add performance middleware
+@app.middleware("http")
+async def add_process_time_header(request: Request, call_next):
+    """Add response time header for performance monitoring"""
+    start_time = time.time()
+    response = await call_next(request)
+    process_time = time.time() - start_time
+    response.headers["X-Process-Time"] = str(process_time)
+    
+    # Log slow requests (> 1 second)
+    if process_time > 1.0:
+        logger.warning(f"Slow request: {request.method} {request.url} took {process_time:.2f}s")
+    
+    return response
+
+# Add GZIP compression for better performance
+app.add_middleware(GZipMiddleware, minimum_size=1000)
+
+# Add CORS middleware with optimized settings
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[settings.FRONTEND_URL, "http://localhost:3000"],
+    allow_origins=["http://localhost:5173", "http://localhost:3000"],  # Frontend URLs
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
+    max_age=3600,  # Cache preflight requests for 1 hour
 )
 
-# Trusted host middleware
-app.add_middleware(
-    TrustedHostMiddleware,
-    allowed_hosts=["localhost", "127.0.0.1", "*.vercel.app", "*.herokuapp.com"]
-)
+# Include API routes
+app.include_router(api_router, prefix="/api/v1")
 
 # Health check endpoint
-@app.get("/")
 @app.get("/health")
 async def health_check():
-    return {
-        "status": "OK",
-        "message": "Wallet API is running",
-        "version": "1.0.0",
-        "environment": settings.ENVIRONMENT,
-        "database_configured": bool(settings.DATABASE_URL and "localhost" not in settings.DATABASE_URL)
-    }
+    """Application health check endpoint"""
+    try:
+        db_healthy = await check_database_health()
+        
+        return JSONResponse(
+            status_code=200 if db_healthy else 503,
+            content={
+                "status": "healthy" if db_healthy else "unhealthy",
+                "database": "connected" if db_healthy else "disconnected",
+                "timestamp": time.time()
+            }
+        )
+    except Exception as e:
+        logger.error(f"Health check failed: {e}")
+        return JSONResponse(
+            status_code=503,
+            content={
+                "status": "unhealthy",
+                "error": str(e),
+                "timestamp": time.time()
+            }
+        )
 
-# Include API router only if we can import it (database might not be set up)
-try:
-    from app.api.v1.api import api_router
-    app.include_router(api_router, prefix="/api/v1")
-    print("✅ API routes loaded successfully")
-except Exception as e:
-    print(f"⚠️  API routes not loaded: {e}")
-    
-    # Add a demo endpoint if database isn't working
-    @app.get("/demo")
-    async def demo_endpoint():
+# Metrics endpoint for monitoring
+@app.get("/metrics")
+async def get_metrics():
+    """Application metrics endpoint"""
+    try:
+        # You can expand this with more metrics
+        import psutil
+        import os
+        
         return {
-            "message": "Demo mode - database not configured",
-            "setup_instructions": "Create .env file with DATABASE_URL to enable full functionality"
+            "cpu_percent": psutil.cpu_percent(),
+            "memory_percent": psutil.virtual_memory().percent,
+            "process_id": os.getpid(),
+            "timestamp": time.time()
+        }
+    except ImportError:
+        return {
+            "message": "Metrics require psutil package",
+            "timestamp": time.time()
+        }
+    except Exception as e:
+        return {
+            "error": str(e),
+            "timestamp": time.time()
         }
 
+# Global exception handler
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    """Global exception handler with logging"""
+    logger.error(f"Unhandled exception: {exc}", exc_info=True)
+    
+    return JSONResponse(
+        status_code=500,
+        content={
+            "detail": "Internal server error",
+            "path": str(request.url),
+            "timestamp": time.time()
+        }
+    )
+
 if __name__ == "__main__":
+    # Production-ready server configuration
     uvicorn.run(
         "main:app",
-        host=settings.HOST,
-        port=settings.PORT,
-        reload=settings.DEBUG,
-        log_level="info"
+        host="0.0.0.0",
+        port=8000,
+        reload=False,  # Disable reload for production
+        workers=1,  # Single worker for SQLite, increase for PostgreSQL
+        access_log=True,
+        log_level="info",
+        loop="uvloop",  # Use uvloop for better performance (install with: pip install uvloop)
+        http="httptools"  # Use httptools for better HTTP parsing (install with: pip install httptools)
     ) 
