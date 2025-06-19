@@ -136,6 +136,11 @@ dmypy.json
 wallet.db
 test.db
 
+# SQLite temporary files
+*.db-shm
+*.db-wal
+*.db-journal
+
 # Environment variables
 .env
 .env.local
