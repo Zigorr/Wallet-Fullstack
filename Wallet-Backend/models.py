@@ -17,16 +17,18 @@ class User(Base):
     id = Column(Integer, primary_key=True, index=True)
     email = Column(String, unique=True, index=True, nullable=False)
     hashed_password = Column(String, nullable=False)
-    full_name = Column(String)
+    username = Column(String, nullable=False)
     
     accounts = relationship("Account", back_populates="owner")
     categories = relationship("Category", back_populates="owner")
     transactions = relationship("Transaction", back_populates="owner")
 
 class AccountType(str, enum.Enum):
-    BANK = "Bank"
-    CASH = "Cash"
-    CREDIT_CARD = "Credit Card"
+    CHECKING = "CHECKING"
+    SAVINGS = "SAVINGS"
+    CREDIT = "CREDIT"
+    INVESTMENT = "INVESTMENT"
+    CASH = "CASH"
 
 class Account(Base):
     __tablename__ = "accounts"
@@ -40,8 +42,8 @@ class Account(Base):
     transactions = relationship("Transaction", back_populates="account")
 
 class CategoryType(str, enum.Enum):
-    INCOME = "Income"
-    EXPENSE = "Expense"
+    INCOME = "INCOME"
+    EXPENSE = "EXPENSE"
 
 class Category(Base):
     __tablename__ = "categories"
@@ -54,9 +56,9 @@ class Category(Base):
     transactions = relationship("Transaction", back_populates="category")
 
 class TransactionType(str, enum.Enum):
-    INCOME = "Income"
-    EXPENSE = "Expense"
-    TRANSFER = "Transfer"
+    INCOME = "INCOME"
+    EXPENSE = "EXPENSE"
+    TRANSFER = "TRANSFER"
 
 class Transaction(Base):
     __tablename__ = "transactions"

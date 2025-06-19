@@ -11,10 +11,11 @@ from config import settings
 import re
 
 router = APIRouter(
+    prefix="/auth",
     tags=["Authentication"]
 )
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/token")
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode = data.copy()
@@ -82,3 +83,7 @@ def get_validation_config():
         "password_regex": settings.PASSWORD_REGEX,
         "password_message": settings.PASSWORD_MESSAGE
     }
+
+@router.get("/users/me", response_model=schemas.User)
+async def read_users_me(current_user: models.User = Depends(get_current_active_user)):
+    return current_user

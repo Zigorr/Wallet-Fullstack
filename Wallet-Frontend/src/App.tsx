@@ -1,54 +1,45 @@
-import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
-import { Box, AppBar, Toolbar, Typography, IconButton } from '@mui/material';
-import { Brightness4, Brightness7 } from '@mui/icons-material';
-import { useThemeContext } from './contexts/ThemeContext';
-
-function Dashboard() {
-  return <Typography variant="h4">Dashboard</Typography>;
-}
-
-function LoginPage() {
-  return <Typography variant="h4">Login</Typography>;
-}
-
-function AppLayout({ children }: { children: React.ReactNode }) {
-  const { mode, toggleTheme } = useThemeContext();
-
-  return (
-    <Box sx={{ display: 'flex' }}>
-      <AppBar position="fixed">
-        <Toolbar>
-          <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
-            Wallet
-          </Typography>
-          <IconButton sx={{ ml: 1 }} onClick={toggleTheme} color="inherit">
-            {mode === 'dark' ? <Brightness7 /> : <Brightness4 />}
-          </IconButton>
-        </Toolbar>
-      </AppBar>
-      <Box component="main" sx={{ flexGrow: 1, p: 3, mt: 8 }}>
-        {children}
-      </Box>
-    </Box>
-  );
-}
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { AuthProvider } from './contexts/AuthContext';
+import ProtectedRoute from './components/ProtectedRoute';
+import Layout from './components/Layout';
+import Dashboard from './pages/Dashboard';
+import AccountsPage from './pages/AccountsPage';
+import TransactionsPage from './pages/TransactionsPage';
+import CategoriesPage from './pages/CategoriesPage';
+import AnalyticsPage from './pages/AnalyticsPage';
+import SettingsPage from './pages/SettingsPage';
+import LoginPage from './pages/LoginPage';
+import RegisterPage from './pages/RegisterPage';
 
 function App() {
   return (
-    <Router>
-      <Routes>
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/*" element={
-          <AppLayout>
-            <Routes>
-              <Route path="/" element={<Dashboard />} />
-              {/* Add other main app routes here */}
-            </Routes>
-          </AppLayout>
-        } />
-      </Routes>
-    </Router>
-  )
+    <AuthProvider>
+      <Router>
+        <Routes>
+          {/* Public Routes */}
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/register" element={<RegisterPage />} />
+          
+          {/* Protected Routes */}
+          <Route path="/" element={
+            <ProtectedRoute>
+              <Layout />
+            </ProtectedRoute>
+          }>
+            <Route index element={<Dashboard />} />
+            <Route path="accounts" element={<AccountsPage />} />
+            <Route path="transactions" element={<TransactionsPage />} />
+            <Route path="categories" element={<CategoriesPage />} />
+            <Route path="analytics" element={<AnalyticsPage />} />
+            <Route path="settings" element={<SettingsPage />} />
+          </Route>
+
+          {/* Redirect all other routes to dashboard */}
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </Router>
+    </AuthProvider>
+  );
 }
 
-export default App 
+export default App; 

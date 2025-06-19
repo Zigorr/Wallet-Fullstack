@@ -36,6 +36,31 @@ def create_transaction_for_user(
 
     return crud.create_user_transaction(db=db, transaction=transaction, user_id=current_user.id)
 
+@router.post("/transfers", status_code=status.HTTP_201_CREATED)
+def create_transfer(
+    transfer: schemas.TransactionTransferCreate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user)
+):
+    """
+    Create a new transfer between two of the current user's accounts.
+    """
+    if transfer.from_account_id == transfer.to_account_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Source and destination accounts cannot be the same.")
+
+    # Verify user owns both accounts
+    from_account = crud.get_account(db, account_id=transfer.from_account_id)
+    to_account = crud.get_account(db, account_id=transfer.to_account_id)
+
+    if not from_account or from_account.owner_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to use the source account.")
+    
+    if not to_account or to_account.owner_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to use the destination account.")
+
+    crud.create_user_transfer(db=db, transfer=transfer, user_id=current_user.id)
+    return {"detail": "Transfer successful"}
+
 @router.get("/", response_model=List[schemas.Transaction])
 def read_user_transactions(
     skip: int = 0,

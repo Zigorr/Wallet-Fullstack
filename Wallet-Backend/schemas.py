@@ -7,7 +7,7 @@ from models import AccountType, CategoryType, TransactionType
 
 class UserBase(BaseModel):
     email: EmailStr
-    full_name: Optional[str] = None
+    username: str
 
 class AccountBase(BaseModel):
     name: str
@@ -38,6 +38,12 @@ class CategoryCreate(CategoryBase):
 
 class TransactionCreate(TransactionBase):
     pass
+
+class TransactionTransferCreate(BaseModel):
+    from_account_id: int
+    to_account_id: int
+    amount: float
+    description: Optional[str] = None
 
 # --- Schemas for Updating objects ---
 

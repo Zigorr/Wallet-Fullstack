@@ -18,7 +18,7 @@ def create_user(db: Session, user: schemas.UserCreate):
     db_user = models.User(
         email=user.email,
         hashed_password=hashed_password,
-        full_name=user.full_name
+        username=user.username
     )
     db.add(db_user)
     db.commit()
@@ -39,6 +39,23 @@ def create_user_account(db: Session, account: schemas.AccountCreate, user_id: in
     db.add(db_account)
     db.commit()
     db.refresh(db_account)
+    return db_account
+
+def update_account(db: Session, account_id: int, account_update: schemas.AccountUpdate):
+    db_account = get_account(db, account_id)
+    if db_account:
+        update_data = account_update.dict(exclude_unset=True)
+        for key, value in update_data.items():
+            setattr(db_account, key, value)
+        db.commit()
+        db.refresh(db_account)
+    return db_account
+
+def delete_account(db: Session, account_id: int):
+    db_account = get_account(db, account_id)
+    if db_account:
+        db.delete(db_account)
+        db.commit()
     return db_account
 
 # Category CRUD functions
@@ -102,3 +119,31 @@ def delete_transaction(db: Session, transaction_id: int):
         db.delete(db_transaction)
         db.commit()
     return db_transaction
+
+def create_user_transfer(db: Session, transfer: schemas.TransactionTransferCreate, user_id: int):
+    # Create the expense transaction
+    expense_transaction = models.Transaction(
+        amount=transfer.amount,
+        type=models.TransactionType.TRANSFER,
+        description=transfer.description,
+        account_id=transfer.from_account_id,
+        category_id=None,
+        owner_id=user_id
+    )
+    # Create the income transaction
+    income_transaction = models.Transaction(
+        amount=transfer.amount,
+        type=models.TransactionType.TRANSFER,
+        description=transfer.description,
+        account_id=transfer.to_account_id,
+        category_id=None,
+        owner_id=user_id
+    )
+    
+    db.add(expense_transaction)
+    db.add(income_transaction)
+    db.commit()
+    db.refresh(expense_transaction)
+    db.refresh(income_transaction)
+    
+    return {"expense": expense_transaction, "income": income_transaction}
