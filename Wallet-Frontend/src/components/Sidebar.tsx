@@ -5,18 +5,22 @@ import {
   HomeIcon,
   CreditCardIcon,
   ArrowsRightLeftIcon,
+  ClockIcon,
   TagIcon,
   ChartBarIcon,
   Cog6ToothIcon,
   WalletIcon,
+  CurrencyDollarIcon,
 } from '@heroicons/react/24/outline';
 import {
   HomeIcon as HomeIconSolid,
   CreditCardIcon as CreditCardIconSolid,
   ArrowsRightLeftIcon as ArrowsRightLeftIconSolid,
+  ClockIcon as ClockIconSolid,
   TagIcon as TagIconSolid,
   ChartBarIcon as ChartBarIconSolid,
   Cog6ToothIcon as Cog6ToothIconSolid,
+  CurrencyDollarIcon as CurrencyDollarIconSolid,
 } from '@heroicons/react/24/solid';
 
 interface NavItem {
@@ -30,6 +34,8 @@ const navigation: NavItem[] = [
   { name: 'Dashboard', href: '/', icon: HomeIcon, iconSolid: HomeIconSolid },
   { name: 'Accounts', href: '/accounts', icon: CreditCardIcon, iconSolid: CreditCardIconSolid },
   { name: 'Transactions', href: '/transactions', icon: ArrowsRightLeftIcon, iconSolid: ArrowsRightLeftIconSolid },
+  { name: 'Transfer', href: '/transfer', icon: CurrencyDollarIcon, iconSolid: CurrencyDollarIconSolid },
+  { name: 'Recurring', href: '/recurring-transactions', icon: ClockIcon, iconSolid: ClockIconSolid },
   { name: 'Categories', href: '/categories', icon: TagIcon, iconSolid: TagIconSolid },
   { name: 'Analytics', href: '/analytics', icon: ChartBarIcon, iconSolid: ChartBarIconSolid },
   { name: 'Settings', href: '/settings', icon: Cog6ToothIcon, iconSolid: Cog6ToothIconSolid },

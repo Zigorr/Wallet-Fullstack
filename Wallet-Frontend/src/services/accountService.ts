@@ -1,16 +1,18 @@
 import api from './api';
-import { Account, AccountType } from '../models/Account';
+import { Account, AccountType, Currency } from '../models/Account';
 
 export interface AccountCreateRequest {
   name: string;
   type: AccountType;
   initial_balance: number;
+  currency: Currency;
 }
 
 export interface AccountUpdateRequest {
   name?: string;
   type?: AccountType;
   initial_balance?: number;
+  currency?: Currency;
 }
 
 export const accountService = {

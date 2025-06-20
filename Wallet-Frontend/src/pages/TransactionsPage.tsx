@@ -251,7 +251,7 @@ const TransactionsPage: React.FC = () => {
                       <td className="p-4">
                         <div className={`font-semibold ${getTransactionColor(transaction.type)}`}>
                           {transaction.type === TransactionType.INCOME ? '+' : transaction.type === TransactionType.EXPENSE ? '-' : ''}
-                          {formatCurrency(Math.abs(transaction.amount))}
+                          {formatCurrency(Math.abs(transaction.amount), transaction.currency)}
                         </div>
                       </td>
                       <td className="p-4">

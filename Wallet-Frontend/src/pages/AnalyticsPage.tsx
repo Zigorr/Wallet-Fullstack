@@ -9,7 +9,8 @@ import {
 } from '@heroicons/react/24/outline';
 import { transactionService } from '../services/transactionService';
 import { accountService } from '../services/accountService';
-import { formatCurrency, formatPercentage } from '../utils/formatters';
+import { formatCurrency, formatPercentage, formatAccountType } from '../utils/formatters';
+import { Currency } from '../models/Account';
 
 const AnalyticsPage: React.FC = () => {
   const { data: transactions = [], isLoading: transactionsLoading } = useQuery({
@@ -24,8 +25,32 @@ const AnalyticsPage: React.FC = () => {
 
   const isLoading = transactionsLoading || accountsLoading;
 
-  // Calculate analytics from actual transaction data
-  const totalBalance = accounts.reduce((sum, account) => sum + account.initial_balance, 0);
+  // Calculate total balance with currency handling
+  const calculateTotalBalance = () => {
+    if (accounts.length === 0) return { amount: 0, currency: Currency.USD };
+    
+    const firstCurrency = accounts[0].currency;
+    const allSameCurrency = accounts.every(account => account.currency === firstCurrency);
+    
+    if (allSameCurrency) {
+      const total = accounts.reduce((sum, account) => sum + account.initial_balance, 0);
+      return { amount: total, currency: firstCurrency };
+    } else {
+      const currencyTotals = accounts.reduce((acc, account) => {
+        acc[account.currency] = (acc[account.currency] || 0) + account.initial_balance;
+        return acc;
+      }, {} as Record<Currency, number>);
+      
+      const dominantCurrency = Object.entries(currencyTotals).reduce((max, [currency, amount]) => 
+        amount > max.amount ? { currency: currency as Currency, amount } : max,
+        { currency: Currency.USD, amount: 0 }
+      );
+      
+      return dominantCurrency;
+    }
+  };
+
+  const totalBalance = calculateTotalBalance();
   
   // Calculate monthly stats from transactions
   const currentMonth = new Date().getMonth();
@@ -37,11 +62,11 @@ const AnalyticsPage: React.FC = () => {
   });
   
   const totalIncome = monthlyTransactions
-    .filter(t => t.type === 'INCOME')
+    .filter(t => t.type === 'INCOME' && t.currency === totalBalance.currency)
     .reduce((sum, t) => sum + t.amount, 0);
     
   const totalExpenses = monthlyTransactions
-    .filter(t => t.type === 'EXPENSE')
+    .filter(t => t.type === 'EXPENSE' && t.currency === totalBalance.currency)
     .reduce((sum, t) => sum + t.amount, 0);
     
   const netIncome = totalIncome - totalExpenses;
@@ -87,7 +112,7 @@ const AnalyticsPage: React.FC = () => {
               </div>
               <h3 className="text-sm font-medium text-dark-400">Total Balance</h3>
             </div>
-            <p className="text-2xl font-bold text-white">{formatCurrency(totalBalance)}</p>
+            <p className="text-2xl font-bold text-white">{formatCurrency(totalBalance.amount, totalBalance.currency)}</p>
             <p className="text-sm text-dark-400 mt-1">Across all accounts</p>
           </div>
         </motion.div>
@@ -106,7 +131,7 @@ const AnalyticsPage: React.FC = () => {
               </div>
               <h3 className="text-sm font-medium text-dark-400">Monthly Income</h3>
             </div>
-            <p className="text-2xl font-bold text-white">{formatCurrency(totalIncome)}</p>
+            <p className="text-2xl font-bold text-white">{formatCurrency(totalIncome, totalBalance.currency)}</p>
             <p className="text-sm text-success mt-1">+0% vs last month</p>
           </div>
         </motion.div>
@@ -125,7 +150,7 @@ const AnalyticsPage: React.FC = () => {
               </div>
               <h3 className="text-sm font-medium text-dark-400">Monthly Expenses</h3>
             </div>
-            <p className="text-2xl font-bold text-white">{formatCurrency(totalExpenses)}</p>
+            <p className="text-2xl font-bold text-white">{formatCurrency(totalExpenses, totalBalance.currency)}</p>
             <p className="text-sm text-danger mt-1">+0% vs last month</p>
           </div>
         </motion.div>
@@ -164,7 +189,7 @@ const AnalyticsPage: React.FC = () => {
             <div>
               <div className="flex justify-between items-center mb-2">
                 <span className="text-dark-400">Income</span>
-                <span className="text-success font-medium">{formatCurrency(totalIncome)}</span>
+                <span className="text-success font-medium">{formatCurrency(totalIncome, totalBalance.currency)}</span>
               </div>
               <div className="w-full bg-dark-800 rounded-full h-3">
                 <div 
@@ -176,7 +201,7 @@ const AnalyticsPage: React.FC = () => {
             <div>
               <div className="flex justify-between items-center mb-2">
                 <span className="text-dark-400">Expenses</span>
-                <span className="text-danger font-medium">{formatCurrency(totalExpenses)}</span>
+                <span className="text-danger font-medium">{formatCurrency(totalExpenses, totalBalance.currency)}</span>
               </div>
               <div className="w-full bg-dark-800 rounded-full h-3">
                 <div 
@@ -207,8 +232,8 @@ const AnalyticsPage: React.FC = () => {
                     <span className="text-white">{account.name}</span>
                   </div>
                   <div className="text-right">
-                    <span className="text-white font-medium">{formatCurrency(account.initial_balance)}</span>
-                    <p className="text-xs text-dark-400 capitalize">{account.type.toLowerCase()}</p>
+                    <span className="text-white font-medium">{formatCurrency(account.initial_balance, account.currency)}</span>
+                    <p className="text-xs text-dark-400">{formatAccountType(account.type)}</p>
                   </div>
                 </div>
               ))
@@ -236,7 +261,7 @@ const AnalyticsPage: React.FC = () => {
           </div>
           <div className="text-center">
             <div className={`text-2xl font-bold mb-1 ${netIncome >= 0 ? 'text-success' : 'text-danger'}`}>
-              {formatCurrency(netIncome)}
+              {formatCurrency(netIncome, totalBalance.currency)}
             </div>
             <div className="text-sm text-dark-400">Net Income</div>
           </div>

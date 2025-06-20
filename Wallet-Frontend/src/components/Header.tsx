@@ -14,7 +14,7 @@ const Header: React.FC = () => {
   const { user, logout } = useAuth();
 
   return (
-    <header className="bg-dark-900/30 backdrop-blur-sm border-b border-dark-700/50 px-6 py-4">
+    <header className="bg-dark-900/30 backdrop-blur-sm border-b border-dark-700/50 px-6 py-4 relative z-40">
       <div className="flex items-center justify-between">
         {/* Search Bar */}
         <div className="flex-1 max-w-xl">
@@ -41,7 +41,7 @@ const Header: React.FC = () => {
           </motion.button>
 
           {/* User Menu */}
-          <Menu as="div" className="relative">
+          <Menu as="div" className="relative z-50">
             <Menu.Button className="flex items-center gap-3 p-2 hover:bg-dark-800/50 rounded-xl transition-colors duration-200">
               <div className="w-8 h-8 bg-gradient-to-br from-primary-500 to-accent rounded-lg flex items-center justify-center">
                 <UserIcon className="w-4 h-4 text-white" />
@@ -62,7 +62,7 @@ const Header: React.FC = () => {
               leaveFrom="transform opacity-100 scale-100"
               leaveTo="transform opacity-0 scale-95"
             >
-              <Menu.Items className="absolute right-0 mt-2 w-48 bg-dark-800 border border-dark-700 rounded-xl shadow-lg focus:outline-none">
+              <Menu.Items className="absolute right-0 mt-2 w-48 bg-dark-800 border border-dark-700 rounded-xl shadow-lg focus:outline-none z-50">
                 <div className="p-2">
                   <Menu.Item>
                     {({ active }) => (

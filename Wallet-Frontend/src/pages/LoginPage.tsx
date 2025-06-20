@@ -1,39 +1,167 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useAuth } from '../contexts/AuthContext';
+import { loginFormState } from '../utils/loginFormState';
 import {
   EyeIcon,
   EyeSlashIcon,
   WalletIcon,
-  EnvelopeIcon,
+  UserIcon,
   LockClosedIcon,
 } from '@heroicons/react/24/outline';
 
 const LoginPage: React.FC = () => {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  // Use global state manager that persists across component unmounts
+  const [username, setUsername] = useState(() => loginFormState.getUsername());
+  const [password, setPassword] = useState(() => loginFormState.getPassword());
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState(() => {
+    // Restore error from session storage if it exists
+    const savedError = sessionStorage.getItem('login_error');
+    return savedError || '';
+  });
 
-  const { login } = useAuth();
+  const { login, isLoading: authLoading, isAuthenticated } = useAuth();
   const navigate = useNavigate();
+  
+  // Use a ref to track if we're currently in a login attempt
+  const loginAttemptRef = useRef(false);
+  const componentIdRef = useRef(Math.random().toString(36).substr(2, 9));
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  // Add debugging to track component lifecycle
+  useEffect(() => {
+    console.log(`[${componentIdRef.current}] LoginPage mounted/updated`, {
+      isAuthenticated,
+      authLoading,
+      loginAttempt: loginAttemptRef.current,
+      username,
+      password: password ? '***' : '(empty)',
+      globalUsername: loginFormState.getUsername(),
+      globalPassword: loginFormState.getPassword() ? '***' : '(empty)'
+    });
+    
+    // If local state is empty but global state has data, restore it
+    const globalUsername = loginFormState.getUsername();
+    const globalPassword = loginFormState.getPassword();
+    
+    if (!username && globalUsername) {
+      console.log(`[${componentIdRef.current}] Restoring username from global state:`, globalUsername);
+      setUsername(globalUsername);
+    }
+    if (!password && globalPassword) {
+      console.log(`[${componentIdRef.current}] Restoring password from global state`);
+      setPassword(globalPassword);
+    }
+
+    // Cleanup function to clear error when component unmounts due to successful navigation
+    return () => {
+      if (isAuthenticated) {
+        console.log(`[${componentIdRef.current}] Component unmounting due to successful auth, clearing error`);
+        sessionStorage.removeItem('login_error');
+      }
+    };
+  });
+
+  // Only redirect if authenticated AND we're not in the middle of a login attempt
+  useEffect(() => {
+    console.log(`[${componentIdRef.current}] Auth effect triggered`, {
+      isAuthenticated,
+      authLoading,
+      loginAttempt: loginAttemptRef.current,
+      error: !!error
+    });
+    
+    // Only navigate if auth system is fully loaded, user is authenticated, 
+    // not in login attempt, and no error is present
+    if (isAuthenticated && !authLoading && !loginAttemptRef.current && !error) {
+      console.log(`[${componentIdRef.current}] Navigating to dashboard`);
+      navigate('/', { replace: true });
+    }
+  }, [isAuthenticated, authLoading, error]);
+
+  // Clear error when user starts typing in either field
+  const handleUsernameChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    console.log(`[${componentIdRef.current}] Username changed:`, value);
+    loginFormState.setUsername(value);
+    setUsername(value);
+    if (error) {
+      setError(''); // Clear error when user types
+      sessionStorage.removeItem('login_error'); // Also clear from session storage
+    }
+  }, [error]);
+
+  const handlePasswordChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    console.log(`[${componentIdRef.current}] Password changed:`, value ? '***' : '(empty)');
+    loginFormState.setPassword(value);
+    setPassword(value);
+    if (error) {
+      setError(''); // Clear error when user types
+      sessionStorage.removeItem('login_error'); // Also clear from session storage
+    }
+  }, [error]);
+
+  const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Prevent multiple submissions or submission during auth loading
+    if (loading || authLoading) {
+      console.log(`[${componentIdRef.current}] Form submission blocked - loading:${loading}, authLoading:${authLoading}`);
+      return;
+    }
+    
+    console.log(`[${componentIdRef.current}] Form submitted`, { username, password: '***' });
+    
+    loginAttemptRef.current = true;
     setLoading(true);
     setError('');
 
     try {
-      await login(email, password);
-      navigate('/');
+      console.log(`[${componentIdRef.current}] Calling login...`);
+      await login(username, password);
+      console.log(`[${componentIdRef.current}] Login successful`);
+      // Clear form data and any stored error on successful login
+      loginFormState.clear();
+      sessionStorage.removeItem('login_error');
+      // Navigation will be handled by the useEffect when isAuthenticated changes
+      // Don't navigate here to avoid race conditions
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Login failed. Please try again.');
+      console.log(`[${componentIdRef.current}] Login failed:`, err);
+      // Extract error message
+      let errorMessage = 'Login failed. Please try again.';
+      
+      if (err.response?.data?.detail) {
+        errorMessage = err.response.data.detail;
+      } else if (err.message) {
+        errorMessage = err.message;
+      }
+      
+      console.log(`[${componentIdRef.current}] Setting error:`, errorMessage);
+      setError(errorMessage);
+      
+      // Also store error in session storage to persist across potential re-renders
+      sessionStorage.setItem('login_error', errorMessage);
     } finally {
+      console.log(`[${componentIdRef.current}] Login attempt finished`);
       setLoading(false);
+      loginAttemptRef.current = false;
     }
-  };
+  }, [login, username, password, loading, authLoading]);
+
+  // Show loading spinner while auth context is initializing
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-dark-950 via-dark-900 to-dark-950 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-8 h-8 border-2 border-primary-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-white">Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-dark-950 via-dark-900 to-dark-950 flex items-center justify-center p-4">
@@ -67,31 +195,36 @@ const LoginPage: React.FC = () => {
           {/* Error Message */}
           {error && (
             <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
+              initial={{ opacity: 0, scale: 0.95, y: -10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: -10 }}
               className="mb-6 p-4 bg-danger/10 border border-danger/20 rounded-xl"
             >
-              <p className="text-danger text-sm">{error}</p>
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 bg-danger rounded-full flex-shrink-0"></div>
+                <p className="text-danger text-sm font-medium">{error}</p>
+              </div>
             </motion.div>
           )}
 
           {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Email Field */}
+            {/* Username Field */}
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-white mb-2">
-                Email Address
+              <label htmlFor="username" className="block text-sm font-medium text-white mb-2">
+                Username
               </label>
               <div className="relative">
-                <EnvelopeIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-dark-400" />
+                <UserIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-dark-400" />
                 <input
-                  id="email"
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  id="username"
+                  type="text"
+                  value={username}
+                  onChange={handleUsernameChange}
                   className="w-full pl-10 pr-4 py-3 bg-dark-800/50 border border-dark-600 rounded-xl text-white placeholder-dark-400 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500 transition-colors duration-200"
-                  placeholder="Enter your email"
+                  placeholder="Enter your username"
                   required
+                  autoComplete="username"
                 />
               </div>
             </div>
@@ -107,10 +240,11 @@ const LoginPage: React.FC = () => {
                   id="password"
                   type={showPassword ? 'text' : 'password'}
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={handlePasswordChange}
                   className="w-full pl-10 pr-12 py-3 bg-dark-800/50 border border-dark-600 rounded-xl text-white placeholder-dark-400 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500 transition-colors duration-200"
                   placeholder="Enter your password"
                   required
+                  autoComplete="current-password"
                 />
                 <button
                   type="button"

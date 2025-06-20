@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Dict
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -15,6 +15,7 @@ router = APIRouter(
 )
 
 @router.post("/", response_model=schemas.Transaction, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=schemas.Transaction, status_code=status.HTTP_201_CREATED)  # Handle without trailing slash
 def create_transaction_for_user(
     transaction: schemas.TransactionCreate,
     db: Session = Depends(get_db),
@@ -36,7 +37,7 @@ def create_transaction_for_user(
 
     return crud.create_user_transaction(db=db, transaction=transaction, user_id=current_user.id)
 
-@router.post("/transfers", status_code=status.HTTP_201_CREATED)
+@router.post("/transfers", status_code=status.HTTP_201_CREATED, response_model=schemas.TransactionTransferResponse)
 def create_transfer(
     transfer: schemas.TransactionTransferCreate,
     db: Session = Depends(get_db),
@@ -44,6 +45,7 @@ def create_transfer(
 ):
     """
     Create a new transfer between two of the current user's accounts.
+    Supports automatic currency conversion if accounts use different currencies.
     """
     if transfer.from_account_id == transfer.to_account_id:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Source and destination accounts cannot be the same.")
@@ -58,10 +60,23 @@ def create_transfer(
     if not to_account or to_account.owner_id != current_user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to use the destination account.")
 
-    crud.create_user_transfer(db=db, transfer=transfer, user_id=current_user.id)
-    return {"detail": "Transfer successful"}
+    try:
+        result = crud.create_user_transfer(db=db, transfer=transfer, user_id=current_user.id)
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+@router.get("/exchange-rates", response_model=Dict[str, float])
+def get_exchange_rates(
+    current_user: models.User = Depends(get_current_active_user)
+):
+    """
+    Get current exchange rates for currency conversion.
+    """
+    return {currency.value: rate for currency, rate in crud.CURRENCY_RATES.items()}
 
 @router.get("/", response_model=List[schemas.Transaction])
+@router.get("", response_model=List[schemas.Transaction])  # Handle without trailing slash
 def read_user_transactions(
     skip: int = 0,
     limit: int = 100,

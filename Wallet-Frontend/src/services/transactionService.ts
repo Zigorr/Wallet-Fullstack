@@ -21,7 +21,15 @@ export interface TransferCreateRequest {
   from_account_id: number;
   to_account_id: number;
   amount: number;
+  converted_amount?: number;
   description?: string;
+}
+
+export interface TransferResponse {
+  expense: Transaction;
+  income: Transaction;
+  exchange_rate: number;
+  converted_amount: number;
 }
 
 export const transactionService = {
@@ -50,8 +58,14 @@ export const transactionService = {
     return response.data;
   },
 
-  async createTransfer(transfer: TransferCreateRequest): Promise<void> {
-    await api.post('/transactions/transfers', transfer);
+  async createTransfer(transfer: TransferCreateRequest): Promise<TransferResponse> {
+    const response = await api.post('/transactions/transfers', transfer);
+    return response.data;
+  },
+
+  async getExchangeRates(): Promise<Record<string, number>> {
+    const response = await api.get('/transactions/exchange-rates');
+    return response.data;
   },
 
   async getRecentTransactions(limit = 10): Promise<Transaction[]> {

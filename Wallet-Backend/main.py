@@ -1,10 +1,10 @@
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from database import engine, Base
-from routers import auth, accounts, categories, transactions
+from routers import auth, accounts, categories, transactions, recurring_transactions
 
-# Drop all existing tables and recreate them (for development)
-Base.metadata.drop_all(bind=engine)
+# Create all tables (for development)
+# Tables will be created only if they don't exist
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
@@ -36,14 +36,19 @@ async def options_handler(request: Request, path: str):
         }
     )
 
-app.include_router(auth.router, prefix="/api")
-app.include_router(accounts.router, prefix="/api")
-app.include_router(categories.router, prefix="/api")
-app.include_router(transactions.router, prefix="/api")
+
+
+app.include_router(auth.router)
+app.include_router(accounts.router)
+app.include_router(categories.router)
+app.include_router(transactions.router)
+app.include_router(recurring_transactions.router)
 
 @app.get("/")
 def read_root():
     return {"message": "Welcome to the Wallet API"}
+
+
 
 if __name__ == "__main__":
     import uvicorn

@@ -1,17 +1,22 @@
 import re
 from pydantic_settings import BaseSettings
+from typing import Optional
 
 class Settings(BaseSettings):
     # Database Configuration
     DATABASE_URL: str
 
+    # Supabase Configuration (optional, for additional features)
+    SUPABASE_URL: Optional[str] = None
+    SUPABASE_KEY: Optional[str] = None
+
     # JWT Authentication
     SECRET_KEY: str
-    ALGORITHM: str
-    ACCESS_TOKEN_EXPIRE_MINUTES: int
+    ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
 
     # Application Settings
-    LOG_LEVEL: str
+    LOG_LEVEL: str = "INFO"
 
     # Password Validation
     # Enforces: 8+ chars, 1 uppercase, 1 lowercase, 1 number, 1 special char

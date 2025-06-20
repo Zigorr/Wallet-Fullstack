@@ -6,6 +6,8 @@ import Dashboard from './pages/Dashboard';
 import AccountsPage from './pages/AccountsPage';
 import TransactionsPage from './pages/TransactionsPage';
 import CategoriesPage from './pages/CategoriesPage';
+import RecurringTransactionsPage from './pages/RecurringTransactionsPage';
+import TransferPage from './pages/TransferPage';
 import AnalyticsPage from './pages/AnalyticsPage';
 import SettingsPage from './pages/SettingsPage';
 import LoginPage from './pages/LoginPage';
@@ -29,6 +31,8 @@ function App() {
             <Route index element={<Dashboard />} />
             <Route path="accounts" element={<AccountsPage />} />
             <Route path="transactions" element={<TransactionsPage />} />
+            <Route path="recurring-transactions" element={<RecurringTransactionsPage />} />
+            <Route path="transfer" element={<TransferPage />} />
             <Route path="categories" element={<CategoriesPage />} />
             <Route path="analytics" element={<AnalyticsPage />} />
             <Route path="settings" element={<SettingsPage />} />

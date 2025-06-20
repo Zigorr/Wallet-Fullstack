@@ -8,11 +8,11 @@ from routers.auth import get_current_active_user
 
 router = APIRouter(
     prefix="/accounts",
-    tags=["Accounts"],
-    dependencies=[Depends(get_current_active_user)]
+    tags=["Accounts"]
 )
 
 @router.post("/", response_model=schemas.Account)
+@router.post("", response_model=schemas.Account)  # Handle without trailing slash
 def create_account(
     account: schemas.AccountCreate, 
     db: Session = Depends(get_db), 
@@ -21,6 +21,7 @@ def create_account(
     return crud.create_user_account(db=db, account=account, user_id=current_user.id)
 
 @router.get("/", response_model=List[schemas.Account])
+@router.get("", response_model=List[schemas.Account])  # Handle without trailing slash
 def read_accounts(
     skip: int = 0, 
     limit: int = 100, 
@@ -69,3 +70,5 @@ def delete_account(
     if db_account.owner_id != current_user.id:
         raise HTTPException(status_code=403, detail="Not authorized to delete this account")
     return crud.delete_account(db=db, account_id=account_id)
+
+

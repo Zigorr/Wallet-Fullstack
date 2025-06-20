@@ -16,6 +16,7 @@ import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, ResponsiveContainer }
 import { accountService } from '../services/accountService';
 import { transactionService } from '../services/transactionService';
 import { categoryService } from '../services/categoryService';
+import { Currency } from '../models/Account';
 
 const Dashboard: React.FC = () => {
   const [balanceVisible, setBalanceVisible] = React.useState(true);
@@ -37,7 +38,34 @@ const Dashboard: React.FC = () => {
 
   const isLoading = accountsLoading || transactionsLoading;
 
-  const totalBalance = accounts.reduce((sum, account) => sum + account.initial_balance, 0);
+  // Calculate total balance - if all accounts have the same currency, show that currency
+  const calculateTotalBalance = () => {
+    if (accounts.length === 0) return { amount: 0, currency: Currency.USD };
+    
+    // Check if all accounts have the same currency
+    const firstCurrency = accounts[0].currency;
+    const allSameCurrency = accounts.every(account => account.currency === firstCurrency);
+    
+    if (allSameCurrency) {
+      const total = accounts.reduce((sum, account) => sum + account.initial_balance, 0);
+      return { amount: total, currency: firstCurrency };
+    } else {
+      // Mixed currencies - find the dominant currency
+      const currencyTotals = accounts.reduce((acc, account) => {
+        acc[account.currency] = (acc[account.currency] || 0) + account.initial_balance;
+        return acc;
+      }, {} as Record<Currency, number>);
+      
+      const dominantCurrency = Object.entries(currencyTotals).reduce((max, [currency, amount]) => 
+        amount > max.amount ? { currency: currency as Currency, amount } : max,
+        { currency: Currency.USD, amount: 0 }
+      );
+      
+      return dominantCurrency;
+    }
+  };
+
+  const totalBalance = calculateTotalBalance();
   
   const currentMonth = new Date().getMonth();
   const currentYear = new Date().getFullYear();
@@ -47,12 +75,16 @@ const Dashboard: React.FC = () => {
     return transactionDate.getMonth() === currentMonth && transactionDate.getFullYear() === currentYear;
   });
   
-  const monthlyIncome = monthlyTransactions
-    .filter(t => t.type === 'INCOME')
+  // Calculate monthly income/expenses in the dominant currency
+  const monthlyIncomeTransactions = monthlyTransactions.filter(t => t.type === 'INCOME');
+  const monthlyExpenseTransactions = monthlyTransactions.filter(t => t.type === 'EXPENSE');
+  
+  const monthlyIncome = monthlyIncomeTransactions
+    .filter(t => t.currency === totalBalance.currency)
     .reduce((sum, t) => sum + t.amount, 0);
     
-  const monthlyExpenses = monthlyTransactions
-    .filter(t => t.type === 'EXPENSE')
+  const monthlyExpenses = monthlyExpenseTransactions
+    .filter(t => t.currency === totalBalance.currency)
     .reduce((sum, t) => sum + t.amount, 0);
 
   const recentTransactions = transactions.slice(0, 5);
@@ -90,12 +122,12 @@ const Dashboard: React.FC = () => {
 
   return (
     <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between relative z-10">
         <div>
           <h1 className="text-3xl font-bold text-white">Dashboard</h1>
           <p className="text-dark-400 mt-1">Welcome back! Here's your financial overview.</p>
         </div>
-        <button className="btn-primary flex items-center gap-2">
+        <button className="btn-primary flex items-center gap-2 relative z-10">
           <PlusIcon className="w-5 h-5" />
           Quick Add
         </button>
@@ -123,7 +155,7 @@ const Dashboard: React.FC = () => {
               </button>
             </div>
             <p className="text-2xl font-bold text-white">
-              {balanceVisible ? formatCurrency(totalBalance) : '••••••'}
+              {balanceVisible ? formatCurrency(totalBalance.amount, totalBalance.currency) : '••••••'}
             </p>
             <p className="text-sm text-primary-400 mt-1">
               {accounts.length} account{accounts.length !== 1 ? 's' : ''}
@@ -143,7 +175,7 @@ const Dashboard: React.FC = () => {
               <ArrowTrendingUpIcon className="w-5 h-5 text-success" />
               <h3 className="text-sm font-medium text-dark-400">Monthly Income</h3>
             </div>
-            <p className="text-2xl font-bold text-white">{formatCurrency(monthlyIncome)}</p>
+            <p className="text-2xl font-bold text-white">{formatCurrency(monthlyIncome, totalBalance.currency)}</p>
             <p className="text-sm text-success mt-1">+0% from last month</p>
           </div>
         </motion.div>
@@ -160,7 +192,7 @@ const Dashboard: React.FC = () => {
               <ArrowTrendingDownIcon className="w-5 h-5 text-danger" />
               <h3 className="text-sm font-medium text-dark-400">Monthly Expenses</h3>
             </div>
-            <p className="text-2xl font-bold text-white">{formatCurrency(monthlyExpenses)}</p>
+            <p className="text-2xl font-bold text-white">{formatCurrency(monthlyExpenses, totalBalance.currency)}</p>
             <p className="text-sm text-danger mt-1">+0% from last month</p>
           </div>
         </motion.div>
@@ -295,7 +327,7 @@ const Dashboard: React.FC = () => {
                       'text-white'
                     }`}>
                       {transaction.type === 'INCOME' ? '+' : transaction.type === 'EXPENSE' ? '-' : ''}
-                      {formatCurrency(Math.abs(transaction.amount))}
+                      {formatCurrency(Math.abs(transaction.amount), transaction.currency)}
                     </p>
                     <p className="text-sm text-dark-400">{formatTimeAgo(transaction.date)}</p>
                   </div>

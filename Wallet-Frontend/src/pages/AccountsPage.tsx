@@ -10,8 +10,8 @@ import {
   EyeSlashIcon,
 } from '@heroicons/react/24/outline';
 import { accountService } from '../services/accountService';
-import { AccountType } from '../models/Account';
-import { formatCurrency } from '../utils/formatters';
+import { AccountType, Currency } from '../models/Account';
+import { formatCurrency, formatAccountType } from '../utils/formatters';
 
 const AccountsPage: React.FC = () => {
   const [showCreateForm, setShowCreateForm] = useState(false);
@@ -42,6 +42,7 @@ const AccountsPage: React.FC = () => {
     name: '',
     type: AccountType.CHECKING,
     initial_balance: 0,
+    currency: Currency.USD,
   });
 
   const handleCreateAccount = (e: React.FormEvent) => {
@@ -55,12 +56,42 @@ const AccountsPage: React.FC = () => {
     }
   };
 
-  const totalBalance = accounts.reduce((sum, account) => sum + account.initial_balance, 0);
+  // Calculate total balance - if all accounts have the same currency, show that currency
+  // Otherwise, show individual currencies or primary currency
+  const calculateTotalBalance = () => {
+    if (accounts.length === 0) return { amount: 0, currency: Currency.USD };
+    
+    // Check if all accounts have the same currency
+    const firstCurrency = accounts[0].currency;
+    const allSameCurrency = accounts.every(account => account.currency === firstCurrency);
+    
+    if (allSameCurrency) {
+      const total = accounts.reduce((sum, account) => sum + account.initial_balance, 0);
+      return { amount: total, currency: firstCurrency };
+    } else {
+      // Mixed currencies - for now, let's find the dominant currency or use USD
+      const currencyTotals = accounts.reduce((acc, account) => {
+        acc[account.currency] = (acc[account.currency] || 0) + account.initial_balance;
+        return acc;
+      }, {} as Record<Currency, number>);
+      
+      // Use the currency with the highest total, or USD if none
+      const dominantCurrency = Object.entries(currencyTotals).reduce((max, [currency, amount]) => 
+        amount > max.amount ? { currency: currency as Currency, amount } : max,
+        { currency: Currency.USD, amount: 0 }
+      );
+      
+      return dominantCurrency;
+    }
+  };
+
+  const totalBalance = calculateTotalBalance();
 
   const accountTypeColors = {
     [AccountType.CHECKING]: 'from-blue-500 to-blue-600',
     [AccountType.SAVINGS]: 'from-green-500 to-green-600',
     [AccountType.CREDIT]: 'from-red-500 to-red-600',
+    [AccountType.DEBIT]: 'from-orange-500 to-orange-600',
     [AccountType.INVESTMENT]: 'from-purple-500 to-purple-600',
     [AccountType.CASH]: 'from-yellow-500 to-yellow-600',
   };
@@ -113,7 +144,7 @@ const AccountsPage: React.FC = () => {
             </button>
           </div>
           <p className="text-3xl font-bold text-white">
-            {balanceVisible ? formatCurrency(totalBalance) : '••••••'}
+            {balanceVisible ? formatCurrency(totalBalance.amount, totalBalance.currency) : '••••••'}
           </p>
           <p className="text-sm text-dark-400 mt-1">
             Across {accounts.length} account{accounts.length !== 1 ? 's' : ''}
@@ -166,9 +197,9 @@ const AccountsPage: React.FC = () => {
                   </div>
                 </div>
                 <h3 className="text-lg font-semibold text-white mb-1">{account.name}</h3>
-                <p className="text-sm text-dark-400 capitalize mb-3">{account.type.toLowerCase()}</p>
+                <p className="text-sm text-dark-400 mb-3">{formatAccountType(account.type)}</p>
                 <p className="text-2xl font-bold text-white">
-                  {formatCurrency(account.initial_balance)}
+                  {formatCurrency(account.initial_balance, account.currency)}
                 </p>
               </div>
             </motion.div>
@@ -204,7 +235,19 @@ const AccountsPage: React.FC = () => {
                   className="input-field w-full"
                 >
                   {Object.values(AccountType).map((type) => (
-                    <option key={type} value={type}>{type}</option>
+                    <option key={type} value={type}>{formatAccountType(type)}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-white mb-2">Currency</label>
+                <select
+                  value={newAccount.currency}
+                  onChange={(e) => setNewAccount({ ...newAccount, currency: e.target.value as Currency })}
+                  className="input-field w-full"
+                >
+                  {Object.values(Currency).map((currency) => (
+                    <option key={currency} value={currency}>{currency}</option>
                   ))}
                 </select>
               </div>

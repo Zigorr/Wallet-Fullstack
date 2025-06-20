@@ -15,6 +15,7 @@ router = APIRouter(
 )
 
 @router.post("/", response_model=schemas.Category, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=schemas.Category, status_code=status.HTTP_201_CREATED)  # Handle without trailing slash
 def create_category_for_user(
     category: schemas.CategoryCreate,
     db: Session = Depends(get_db),
@@ -26,6 +27,7 @@ def create_category_for_user(
     return crud.create_user_category(db=db, category=category, user_id=current_user.id)
 
 @router.get("/", response_model=List[schemas.Category])
+@router.get("", response_model=List[schemas.Category])  # Handle without trailing slash
 def read_user_categories(
     skip: int = 0,
     limit: int = 100,
